@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Mash Uploads (private)</title>
+<style>
+  :root{
+    --bg:#0b1210; --panel:#101a17; --line:#1e2b27; --teal:#34D6C4;
+    --muted:#9fb3ad; --dim:#5c716c; --text:#e8f2ef; --danger:#FF4B3E; --ok:#2ecc71;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    padding:32px 16px 80px;
+  }
+  .wrap{ max-width:720px; margin:0 auto; }
+  header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; }
+  h1{ font-size:20px; margin:0; }
+  h1 span{ color:var(--teal); }
+  .privacy-note{
+    font-size:11.5px; color:var(--dim); border:1px solid var(--line); background:var(--panel);
+    border-radius:10px; padding:10px 14px; margin-bottom:24px; line-height:1.6;
+  }
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    padding:20px 22px; margin-bottom:18px;
+  }
+  .card h2{ font-size:14px; margin:0 0 14px; color:var(--teal); font-weight:600; }
+  label{ display:block; font-size:12px; color:var(--muted); margin:10px 0 5px; }
+  input[type=text], input[type=url], textarea{
+    width:100%; background:#0d1614; border:1px solid var(--line); color:var(--text);
+    border-radius:8px; padding:9px 11px; font-size:13px; font-family:inherit;
+  }
+  textarea{ min-height:80px; resize:vertical; }
+  .platforms{ display:flex; flex-direction:column; gap:12px; }
+  .platform-row{
+    display:flex; align-items:center; justify-content:space-between;
+    border:1px solid var(--line); border-radius:10px; padding:12px 14px;
+  }
+  .platform-row .name{ display:flex; align-items:center; gap:10px; font-weight:600; font-size:13.5px; }
+  .status-dot{ width:8px; height:8px; border-radius:50%; background:var(--dim); }
+  .status-dot.connected{ background:var(--ok); }
+  .status-dot.error{ background:var(--danger); }
+  button{
+    font-family:inherit; font-size:12.5px; font-weight:600; border-radius:7px;
+    padding:8px 14px; cursor:pointer; border:1px solid var(--line); background:transparent; color:var(--text);
+  }
+  button.primary{ background:var(--teal); border-color:var(--teal); color:#04211D; }
+  button.primary:hover{ background:#4be2d1; }
+  button.ghost:hover{ border-color:var(--teal); color:var(--teal); }
+  button:disabled{ opacity:0.5; cursor:not-allowed; }
+  .file-drop{
+    border:1.5px dashed var(--line); border-radius:12px; padding:26px; text-align:center;
+    color:var(--muted); font-size:13px; cursor:pointer;
+  }
+  .file-drop.has-file{ border-color:var(--teal); color:var(--text); }
+  .post-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:6px; }
+  .log{
+    font-size:12px; font-family:ui-monospace,monospace; background:#0d1614; border:1px solid var(--line);
+    border-radius:10px; padding:12px 14px; max-height:220px; overflow-y:auto; white-space:pre-wrap;
+    color:var(--muted); margin-top:12px;
+  }
+  .log .ok{ color:var(--ok); } .log .err{ color:var(--danger); } .log .info{ color:var(--teal); }
+  .settings-toggle{ font-size:12px; color:var(--dim); cursor:pointer; text-decoration:underline; }
+  #settingsBody{ display:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Mash<span>Uploads</span></h1>
+    <span class="settings-toggle" id="settingsToggle">settings</span>
+  </header>
+
+  <div class="privacy-note">
+    Private tool — this page isn't linked anywhere. Credentials and tokens are stored only in this browser's local storage. Nothing is sent anywhere except directly to YouTube, TikTok, Instagram, and your own backend worker.
+  </div>
+
+  <div class="card" id="settingsCard">
+    <h2>Settings</h2>
+    <div id="settingsBody">
+      <label>Worker base URL (from your deployed backend — see README)</label>
+      <input type="url" id="workerUrl" placeholder="https://mash-uploads.<you>.workers.dev">
+
+      <label>YouTube OAuth Client ID (Desktop app type — see SETUP_GUIDE.md)</label>
+      <input type="text" id="ytClientId" placeholder="xxxxxxxx.apps.googleusercontent.com">
+
+      <div class="post-actions">
+        <button class="primary" id="saveSettingsBtn">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Accounts</h2>
+    <div class="platforms">
+      <div class="platform-row" data-platform="youtube">
+        <div class="name"><span class="status-dot" id="dot-youtube"></span> YouTube</div>
+        <button class="ghost" id="connect-youtube">Connect</button>
+      </div>
+      <div class="platform-row" data-platform="tiktok">
+        <div class="name"><span class="status-dot" id="dot-tiktok"></span> TikTok</div>
+        <button class="ghost" id="connect-tiktok">Connect</button>
+      </div>
+      <div class="platform-row" data-platform="instagram">
+        <div class="name"><span class="status-dot" id="dot-instagram"></span> Instagram</div>
+        <button class="ghost" id="connect-instagram">Connect</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Post</h2>
+    <div class="file-drop" id="fileDrop">Click to choose a video file, or drag one here</div>
+    <input type="file" id="fileInput" accept="video/*" style="display:none">
+
+    <label>Title (YouTube)</label>
+    <input type="text" id="titleInput" placeholder="Video title">
+
+    <label>Caption / description (used for all platforms)</label>
+    <textarea id="captionInput" placeholder="Write it once..."></textarea>
+
+    <div class="post-actions">
+      <button class="primary" id="postAllBtn" disabled>Post to all connected</button>
+    </div>
+
+    <div class="log" id="log">Ready.</div>
+  </div>
+</div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+(function(){
+  // ---------- storage helpers ----------
+  const store = {
+    get(k, d){ try{ return JSON.parse(localStorage.getItem('mash_'+k)) ?? d; }catch(e){ return d; } },
+    set(k, v){ localStorage.setItem('mash_'+k, JSON.stringify(v)); }
+  };
+
+  const settings = store.get('settings', { workerUrl:'', ytClientId:'' });
+  const tokens = store.get('tokens', {}); // { youtube:{access_token,expires_at}, tiktok:{...}, instagram:{...} }
+
+  function saveTokens(){ store.set('tokens', tokens); }
+
+  // ---------- log ----------
+  const logEl = document.getElementById('log');
+  function log(msg, cls){
+    const line = document.createElement('div');
+    if(cls) line.className = cls;
+    line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  // ---------- settings panel ----------
+  const settingsToggle = document.getElementById('settingsToggle');
+  const settingsBody = document.getElementById('settingsBody');
+  const workerUrlInput = document.getElementById('workerUrl');
+  const ytClientIdInput = document.getElementById('ytClientId');
+  workerUrlInput.value = settings.workerUrl;
+  ytClientIdInput.value = settings.ytClientId;
+
+  settingsToggle.onclick = () => {
+    settingsBody.style.display = settingsBody.style.display === 'block' ? 'none' : 'block';
+  };
+  document.getElementById('saveSettingsBtn').onclick = () => {
+    settings.workerUrl = workerUrlInput.value.trim().replace(/\/$/, '');
+    settings.ytClientId = ytClientIdInput.value.trim();
+    store.set('settings', settings);
+    log('Settings saved.', 'ok');
+    settingsBody.style.display = 'none';
+    updateConnectButtons();
+  };
+
+  // ---------- connection status UI ----------
+  function isConnected(platform){
+    const t = tokens[platform];
+    if(!t || !t.access_token) return false;
+    if(t.expires_at && Date.now() > t.expires_at) return false;
+    return true;
+  }
+  function updateConnectButtons(){
+    ['youtube','tiktok','instagram'].forEach(p => {
+      const dot = document.getElementById('dot-'+p);
+      const btn = document.getElementById('connect-'+p);
+      const ok = isConnected(p);
+      dot.className = 'status-dot' + (ok ? ' connected' : '');
+      btn.textContent = ok ? 'Reconnect' : 'Connect';
+    });
+    const anyConnected = ['youtube','tiktok','instagram'].some(isConnected);
+    document.getElementById('postAllBtn').disabled = !anyConnected || !selectedFile;
+  }
+
+  // ---------- YouTube connect (Google Identity Services token client, no backend needed) ----------
+  let ytTokenClient = null;
+  function ensureYtClient(){
+    if(!settings.ytClientId){ log('Set your YouTube Client ID in Settings first.', 'err'); return null; }
+    if(!window.google || !google.accounts || !google.accounts.oauth2){
+      log('Google Identity Services library not loaded yet — try again in a second.', 'err');
+      return null;
+    }
+    if(!ytTokenClient){
+      ytTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: settings.ytClientId,
+        scope: 'https://www.googleapis.com/auth/youtube.upload',
+        callback: (resp) => {
+          if(resp.error){ log('YouTube auth error: ' + resp.error, 'err'); return; }
+          tokens.youtube = { access_token: resp.access_token, expires_at: Date.now() + (resp.expires_in*1000) };
+          saveTokens();
+          log('YouTube connected.', 'ok');
+          updateConnectButtons();
+        }
+      });
+    }
+    return ytTokenClient;
+  }
+  document.getElementById('connect-youtube').onclick = () => {
+    const client = ensureYtClient();
+    if(client) client.requestAccessToken();
+  };
+
+  // ---------- TikTok / Instagram connect (redirect through Worker) ----------
+  function startWorkerOAuth(platform){
+    if(!settings.workerUrl){ log('Set your Worker base URL in Settings first.', 'err'); return; }
+    const state = platform + ':' + Math.random().toString(36).slice(2);
+    sessionStorage.setItem('mash_oauth_state', state);
+    sessionStorage.setItem('mash_oauth_return', location.href.split('#')[0]);
+    location.href = `${settings.workerUrl}/auth/${platform}/start?state=${encodeURIComponent(state)}&return=${encodeURIComponent(location.href.split('#')[0])}`;
+  }
+  document.getElementById('connect-tiktok').onclick = () => startWorkerOAuth('tiktok');
+  document.getElementById('connect-instagram').onclick = () => startWorkerOAuth('instagram');
+
+  // Pick up tokens the Worker hands back in the URL fragment after redirecting home
+  (function consumeOAuthFragment(){
+    if(!location.hash || location.hash.length < 2) return;
+    const params = new URLSearchParams(location.hash.slice(1));
+    const platform = params.get('platform');
+    if(!platform) return;
+    const access_token = params.get('access_token');
+    const expires_in = parseInt(params.get('expires_in') || '0', 10);
+    const extra = {};
+    if(params.get('ig_user_id')) extra.ig_user_id = params.get('ig_user_id');
+    if(!access_token){
+      log(`${platform} connection failed: ${params.get('error') || 'unknown error'}`, 'err');
+    } else {
+      tokens[platform] = Object.assign({ access_token, expires_at: Date.now() + expires_in*1000 }, extra);
+      saveTokens();
+      log(`${platform} connected.`, 'ok');
+    }
+    history.replaceState(null, '', location.pathname);
+    updateConnectButtons();
+  })();
+
+  // ---------- file selection ----------
+  let selectedFile = null;
+  const fileDrop = document.getElementById('fileDrop');
+  const fileInput = document.getElementById('fileInput');
+  fileDrop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if(fileInput.files[0]) setFile(fileInput.files[0]); };
+  fileDrop.ondragover = (e) => e.preventDefault();
+  fileDrop.ondrop = (e) => { e.preventDefault(); if(e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); };
+  function setFile(f){
+    selectedFile = f;
+    fileDrop.textContent = `${f.name} (${(f.size/1e6).toFixed(1)} MB)`;
+    fileDrop.classList.add('has-file');
+    updateConnectButtons();
+  }
+
+  // ---------- posting ----------
+  async function uploadToYouTube(file, title, caption){
+    const meta = { snippet: { title: title || file.name, description: caption || '' }, status: { privacyStatus: 'private' } };
+    // NOTE: single-request upload — fine for short clips. For anything beyond
+    // a couple hundred MB, switch to the resumable upload protocol instead
+    // (see README "Known limitations").
+    const boundary = 'mashuploads_boundary';
+    const metaPart = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n`;
+    const closeDelim = `\r\n--${boundary}--`;
+    const body = new Blob([metaPart, `--${boundary}\r\nContent-Type: ${file.type || 'video/*'}\r\n\r\n`, file, closeDelim]);
+    const res = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=multipart&part=snippet,status', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + tokens.youtube.access_token, 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error?.message || 'YouTube upload failed');
+    return data;
+  }
+
+  async function stageFileForPull(file){
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch(`${settings.workerUrl}/stage`, { method: 'POST', body: fd });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || 'Staging failed');
+    return data.url; // temporary public URL the Worker generated
+  }
+
+  async function postViaWorker(platform, payload){
+    const res = await fetch(`${settings.workerUrl}/api/post`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ platform, access_token: tokens[platform].access_token, ...payload })
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || `${platform} post failed`);
+    return data;
+  }
+
+  document.getElementById('postAllBtn').onclick = async () => {
+    if(!selectedFile) return;
+    const title = document.getElementById('titleInput').value.trim();
+    const caption = document.getElementById('captionInput').value.trim();
+    const btn = document.getElementById('postAllBtn');
+    btn.disabled = true;
+    log('Starting...', 'info');
+
+    let publicUrl = null;
+    const needsStaging = isConnected('tiktok') || isConnected('instagram');
+    if(needsStaging){
+      try{
+        log('Staging file for TikTok/Instagram pull-upload...', 'info');
+        publicUrl = await stageFileForPull(selectedFile);
+        log('Staged: ' + publicUrl, 'ok');
+      }catch(e){
+        log('Staging failed, TikTok/Instagram will be skipped: ' + e.message, 'err');
+      }
+    }
+
+    if(isConnected('youtube')){
+      try{
+        log('Uploading to YouTube...', 'info');
+        const data = await uploadToYouTube(selectedFile, title, caption);
+        log('YouTube done: https://youtu.be/' + data.id, 'ok');
+      }catch(e){ log('YouTube failed: ' + e.message, 'err'); }
+    }
+
+    if(isConnected('tiktok') && publicUrl){
+      try{
+        log('Posting to TikTok...', 'info');
+        await postViaWorker('tiktok', { video_url: publicUrl, title: title || caption });
+        log('TikTok done (check the app — unaudited posts land private until you flip them, or until your audit clears).', 'ok');
+      }catch(e){ log('TikTok failed: ' + e.message, 'err'); }
+    }
+
+    if(isConnected('instagram') && publicUrl){
+      try{
+        log('Posting to Instagram...', 'info');
+        await postViaWorker('instagram', { video_url: publicUrl, caption, ig_user_id: tokens.instagram.ig_user_id });
+        log('Instagram done.', 'ok');
+      }catch(e){ log('Instagram failed: ' + e.message, 'err'); }
+    }
+
+    log('All done.', 'info');
+    btn.disabled = false;
+  };
+
+  updateConnectButtons();
+})();
+</script>
+</body>
+</html>

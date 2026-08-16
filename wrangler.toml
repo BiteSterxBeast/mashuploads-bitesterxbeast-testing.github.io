@@ -1,0 +1,13 @@
+name = "mash-uploads"
+main = "worker.js"
+compatibility_date = "2026-08-01"
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "mash-uploads-media"
+
+# Secrets (set these with `wrangler secret put <NAME>`, never commit them):
+#   TIKTOK_CLIENT_KEY
+#   TIKTOK_CLIENT_SECRET
+#   META_APP_ID
+#   META_APP_SECRET
